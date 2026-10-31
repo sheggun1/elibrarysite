@@ -260,8 +260,12 @@ const FIELDS = [
 async function api(path, opts={}){
   const r = await fetch(path, opts);
   if(!r.ok){
-    let msg = r.statusText;
-    try{ const j = await r.json(); msg = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail); }catch(e){}
+    let msg = `Server error ${r.status}${r.statusText ? " " + r.statusText : ""}`;
+    try{
+      const t = await r.text();
+      try{ const j = JSON.parse(t); msg = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail); }
+      catch(e){ if(t && !t.trim().startsWith("<")) msg += ": " + t.slice(0,200); else if(r.status===502||r.status===503) msg += " (the server is starting or has crashed; wait a minute and refresh, then check Render > Logs)"; }
+    }catch(e){}
     throw new Error(msg);
   }
   return r;
@@ -421,7 +425,7 @@ async function checkStatus(){
     if(!st.admin_key_set) msgs.push("ADMIN_KEY is not set on the server, so admin sign-in is off. Add ADMIN_KEY in Render > Environment and redeploy.");
     if(msgs.length){ $("#banner").textContent = msgs.join(" "); $("#banner").hidden = false; }
   }catch(e){
-    $("#banner").textContent = "Cannot reach the server: " + e.message; $("#banner").hidden = false;
+    $("#banner").textContent = "Could not read the server status: " + e.message; $("#banner").hidden = false;
   }
 }
 $("#test-ai").onclick = async e=>{
