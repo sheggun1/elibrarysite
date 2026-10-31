@@ -118,6 +118,7 @@ button.btn:disabled{opacity:.55;cursor:wait}
 </header>
 
 <main class="wrap">
+<div class="status err" id="banner" role="alert" hidden></div>
 <!-- ================= TEACHER ================= -->
 <section id="view-teacher" role="tabpanel" aria-labelledby="tab-teacher">
   <div class="sheet">
@@ -206,8 +207,9 @@ button.btn:disabled{opacity:.55;cursor:wait}
   <div id="admin-panel" hidden>
     <div class="row" style="justify-content:space-between;margin-bottom:8px">
       <h2 style="font:800 1.4rem var(--font-head);margin:0">Curricula</h2>
-      <button class="btn ghost" id="admin-out">Sign out</button>
+      <div class="row"><button class="btn ghost" id="test-ai">Test AI connection</button><button class="btn ghost" id="admin-out">Sign out</button></div>
     </div>
+    <div class="status" id="ai-status" role="status" aria-live="polite"></div>
     <table class="cur-list" id="cur-table"><thead><tr><th>Class</th><th>Subject</th><th>Term</th><th>Weeks</th><th></th></tr></thead><tbody></tbody></table>
 
     <h2 style="font:800 1.4rem var(--font-head);margin:32px 0 8px">Add a curriculum</h2>
@@ -410,6 +412,27 @@ $("#dl-pdf").onclick = ()=>download("pdf");
 $("#dl-docx").onclick = ()=>download("docx");
 $("#do-print").onclick = ()=>window.print();
 
+/* ---------- server status ---------- */
+async function checkStatus(){
+  try{
+    const st = await (await api("/api/status")).json();
+    const msgs = [];
+    if(!st.database_ok) msgs.push("The database is not working: " + (st.database_error||"unknown error") + ". Check DATABASE_URL in Render > Environment.");
+    if(!st.admin_key_set) msgs.push("ADMIN_KEY is not set on the server, so admin sign-in is off. Add ADMIN_KEY in Render > Environment and redeploy.");
+    if(msgs.length){ $("#banner").textContent = msgs.join(" "); $("#banner").hidden = false; }
+  }catch(e){
+    $("#banner").textContent = "Cannot reach the server: " + e.message; $("#banner").hidden = false;
+  }
+}
+$("#test-ai").onclick = async e=>{
+  e.target.disabled = true; setStatus($("#ai-status"),"Testing the AI connection.","",true);
+  try{
+    const j = await (await api("/admin/diagnose",{method:"POST",headers:aHead()})).json();
+    setStatus($("#ai-status"), j.ok ? `AI works (model ${j.model}).` : `AI failed (model ${j.model}): ${j.error}`, j.ok?"ok":"err");
+  }catch(err){ setStatus($("#ai-status"), err.message, "err"); }
+  finally{ e.target.disabled = false; }
+};
+
 /* ---------- admin ---------- */
 const adminKey = ()=>{ try{return sessionStorage.getItem("adminKey")||""}catch(e){return window._ak||""} };
 const setKey = k=>{ try{sessionStorage.setItem("adminKey",k)}catch(e){window._ak=k} };
@@ -521,6 +544,7 @@ $("#save-cur").onclick = async e=>{
 };
 
 refreshLayout();
+checkStatus();
 loadCurricula();
 </script>
 </body>
